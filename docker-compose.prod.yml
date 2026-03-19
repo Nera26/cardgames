@@ -1,0 +1,109 @@
+# ============================================================
+#  PRODUCTION Docker Compose
+#  Usage: docker-compose -f docker-compose.prod.yml up --build
+# ============================================================
+# Features:
+#   - Optimized multi-stage builds
+#   - No volume mounts (uses built images)
+#   - No development tools
+#   - Production mode commands
+# ============================================================
+
+services:
+  # ----------------------
+  # DATABASE
+  # ----------------------
+  postgres:
+    image: postgres:15-alpine
+    container_name: poker_db
+    restart: unless-stopped
+    ports:
+      - "5432:5432"
+    environment:
+      - POSTGRES_USER=admin
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-poker_password}
+      - POSTGRES_DB=poker_hub
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - poker_net
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U admin -d poker_hub"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ----------------------
+  # REDIS (Session/Cache)
+  # ----------------------
+  redis:
+    image: redis:alpine
+    container_name: poker_redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - poker_net
+    command: redis-server --appendonly yes
+
+  # ----------------------
+  # API (NestJS Backend)
+  # ----------------------
+  api:
+    container_name: cardgames-api
+    restart: unless-stopped
+    build:
+      context: .
+      dockerfile: ./apps/api/Dockerfile.prod
+    environment:
+      - NODE_ENV=production
+      - DATABASE_URL=postgresql://admin:${POSTGRES_PASSWORD:-poker_password}@postgres:5432/poker_hub?schema=public
+      - REDIS_URL=redis://redis:6379
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+    ports:
+      - "3001:3000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - poker_net
+    # Resource limits for production
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+
+  # ----------------------
+  # WEB (Next.js Frontend)
+  # ----------------------
+  web:
+    container_name: cardgames-web
+    restart: unless-stopped
+    build:
+      context: .
+      dockerfile: ./apps/web/Dockerfile.prod
+    environment:
+      - NODE_ENV=production
+      - NEXT_PUBLIC_API_URL=${API_URL:-http://localhost:3001}
+    ports:
+      - "3000:3000"
+    depends_on:
+      - api
+    networks:
+      - poker_net
+    # Resource limits for production
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+
+volumes:
+  postgres_data:
+  redis_data:
+
+networks:
+  poker_net:
+    driver: bridge

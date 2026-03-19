@@ -1,0 +1,33 @@
+{
+    "name": "poker-vibe-monorepo",
+    "version": "1.0.0",
+    "private": true,
+    "workspaces": [
+        "apps/*",
+        "libs/*"
+    ],
+    "scripts": {
+        "start:dev": "npx prisma generate --schema=libs/shared/prisma/schema.prisma && npx nest start api --watch --webpack --webpackPath apps/api/webpack.config.js",
+        "test": "echo \"Error: no test specified\" && exit 1"
+    },
+    "keywords": [],
+    "author": "",
+    "license": "ISC",
+    "dependencies": {
+        "@nestjs/platform-socket.io": "^11.1.12",
+        "@nestjs/throttler": "^6.5.0",
+        "@nestjs/websockets": "^11.1.12",
+        "@prisma/adapter-pg": "5.11.0",
+        "@prisma/client": "5.11.0",
+        "@socket.io/redis-adapter": "^8.3.0",
+        "framer-motion": "^12.29.2",
+        "ioredis": "^5.9.2",
+        "poker-evaluator": "^2.1.1",
+        "socket.io": "^4.8.3"
+    },
+    "devDependencies": {
+        "@types/multer": "^2.1.0",
+        "prisma": "5.11.0",
+        "testcontainers": "^11.11.0"
+    }
+}

@@ -1,0 +1,497 @@
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = ["driverAdapters"]
+  binaryTargets   = ["native", "linux-musl-openssl-3.0.x"]
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  USER
+  ADMIN
+  SUPERADMIN
+}
+
+enum Tier {
+  BRONZE
+  SILVER
+  GOLD
+  PLATINUM
+  DIAMOND
+}
+
+enum TransactionType {
+  DEPOSIT
+  WITHDRAW
+  BUY_IN
+  CASH_OUT
+  BONUS
+  RAKE
+  ADMIN_CREDIT
+  ADMIN_DEBIT
+  TOURNAMENT_BUY_IN
+  TOURNAMENT_REBUY
+  TOURNAMENT_ADDON
+  TOURNAMENT_PRIZE
+  TOURNAMENT_REFUND
+}
+
+enum TransactionStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  COMPLETED
+}
+
+enum GameVariant {
+  TEXAS_HOLDEM
+  OMAHA
+  ALL_IN_OR_FOLD
+}
+
+enum BettingLimit {
+  NO_LIMIT
+  POT_LIMIT
+  FIXED_LIMIT
+}
+
+enum UserType {
+  PLAYER
+  HOUSE
+  BOT
+}
+
+enum LeaderboardTimeframe {
+  DAILY
+  WEEKLY
+  MONTHLY
+}
+
+enum GameMode {
+  CASH
+  TOURNAMENT
+}
+
+enum TournamentStatus {
+  ANNOUNCED
+  REGISTERING
+  LATE_REG
+  RUNNING
+  ON_BREAK
+  PAUSED
+  FINISHED
+  CANCELLED
+}
+
+enum TournamentGameType {
+  TEXAS_HOLDEM
+  POT_LIMIT_OMAHA
+  OMAHA_HI_LO
+  SHORT_DECK
+}
+
+enum TournamentEntryFormat {
+  REGULAR
+  FREEROLL
+  FREEZEOUT
+  RE_ENTRY
+  PROGRESSIVE_KO
+  BOUNTY
+}
+
+enum BlindStructureSpeed {
+  REGULAR
+  TURBO
+  HYPER_TURBO
+  DEEP_STACK
+}
+
+enum LateRegistrationWindow {
+  DISABLED
+  THIRTY_MINUTES
+  SIXTY_MINUTES
+  NINETY_MINUTES
+  UNTIL_FIRST_BREAK
+}
+
+enum PayoutStructure {
+  WINNER_TAKES_ALL
+  TOP_3
+  TOP_10_PERCENT
+  TOP_15_PERCENT
+  TOP_20_PERCENT
+  CUSTOM
+}
+
+model User {
+  id       String @id @default(cuid())
+  email    String @unique
+  username String @unique
+  password String
+
+  // Profile
+  bio               String?
+  avatarUrl         String?
+  avatarId          String  @default("avatar_1")
+  accountNumber     String? @map("bankAccount") // Renamed from bankAccount
+  iban              String?
+  bankName          String?
+  accountHolderName String?
+
+  // Tier Progression
+  tier             Tier    @default(BRONZE)
+  lifetimeRake     Decimal @default(0) @db.Decimal(20, 2)
+  lifetimeEarnings Int     @default(0)
+
+  // Status
+  isVerified    Boolean   @default(false)
+  isBanned      Boolean   @default(false)
+  verifyToken   String?
+  resetToken    String?
+  resetTokenExp DateTime?
+  role          Role      @default(USER)
+  type          UserType  @default(PLAYER)
+
+  // Pre-aggregated Stats (Incremented atomically by HandHistoryProcessor)
+  handsPlayed       Int @default(0)
+  handsWon          Int @default(0)
+  tournamentsPlayed Int @default(0)
+  tournamentsTop3   Int @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  wallet                Wallet?
+  refreshTokens         RefreshToken[]
+  processedTransactions Transaction[]       @relation("ProcessedTransactions")
+  performedTransactions Transaction[]       @relation("PerformedTransactions")
+  bankHistory           BankConfigHistory[]
+  auditLogs             AuditLog[]
+  notifications         Notification[]
+  leaderboardStats      LeaderboardStat[]
+  createdTournaments    Tournament[]        @relation("TournamentCreator")
+  tournamentEntries     TournamentEntry[]   @relation("TournamentEntries")
+
+  @@index([username])
+}
+
+model Wallet {
+  id           String   @id @default(cuid())
+  userId       String   @unique
+  realBalance  Decimal  @default(0) @db.Decimal(20, 2)
+  bonusBalance Decimal  @default(0) @db.Decimal(20, 2)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  transactions Transaction[]
+}
+
+model Transaction {
+  id              String            @id @default(uuid())
+  walletId        String
+  type            TransactionType
+  amount          Decimal           @db.Decimal(20, 2)
+  status          TransactionStatus @default(PENDING)
+  description     String?
+  balanceBefore   Decimal?          @db.Decimal(20, 2) // Wallet balance BEFORE this transaction
+  balanceAfter    Decimal?          @db.Decimal(20, 2) // Wallet balance AFTER this transaction
+  referenceId     String? // Session link: "{tableId}:{timestamp}" — ties BUY_IN ↔ CASH_OUT
+  rejectionReason String?
+  processedById   String?
+  processedBy     User?             @relation("ProcessedTransactions", fields: [processedById], references: [id])
+  performedById   String?
+  performedBy     User?             @relation("PerformedTransactions", fields: [performedById], references: [id])
+  createdAt       DateTime          @default(now())
+
+  wallet Wallet @relation(fields: [walletId], references: [id], onDelete: Cascade)
+
+  @@unique([referenceId, type]) // Idempotency Shield: prevents duplicate BUY_IN/CASH_OUT per session
+  @@index([walletId])
+  @@index([processedById])
+  @@index([referenceId])
+}
+
+model RefreshToken {
+  id        String   @id @default(uuid())
+  token     String   @unique
+  userId    String
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model SystemConfig {
+  key       String   @id
+  value     Json
+  updatedAt DateTime @updatedAt
+  updatedBy String?
+}
+
+model BankConfigHistory {
+  id           String   @id @default(uuid())
+  adminId      String?
+  admin        User?    @relation(fields: [adminId], references: [id])
+  adminName    String
+  iban         String
+  bankName     String
+  holderName   String
+  instructions String?
+  note         String?
+  createdAt    DateTime @default(now())
+}
+
+model AuditLog {
+  id        String   @id @default(uuid())
+  userId    String
+  action    String
+  payload   Json
+  ipAddress String?
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@index([userId])
+  @@index([action])
+}
+
+model HandHistory {
+  id             String             @id @default(uuid())
+  tableId        String
+  endTime        DateTime           @default(now())
+  communityCards Json? // Stores ['As', 'Kd', 'Th'] — nullable for Reaper archive
+  pot            Int
+  rake           Int
+  actionLog      Json? // Street-by-street actions — nullable for Reaper archive
+  playerResults  HandPlayerResult[]
+
+  @@index([tableId])
+  @@index([endTime(sort: Desc)])
+}
+
+model HandPlayerResult {
+  id              String      @id @default(uuid())
+  handId          String
+  hand            HandHistory @relation(fields: [handId], references: [id])
+  userId          String
+  seat            Int
+  winAmount       Int // How much they won (0 if lost)
+  netProfit       Int // winAmount - totalContribution
+  handDescription String? // e.g. "Two Pair, Aces and Kings"
+  cards           String[] // Hero's hole cards, e.g. ["Ah", "Kd"]
+
+  @@index([handId])
+  @@index([userId, handId])
+}
+
+model ReconciliationReport {
+  id                 String   @id @default(uuid())
+  timestamp          DateTime @default(now())
+  totalWalletBalance Decimal  @db.Decimal(20, 2) // Sum of Postgres Wallets
+  totalChipsInPlay   Decimal  @db.Decimal(20, 2) // Sum of Redis Tables
+  expectedBalance    Decimal  @db.Decimal(20, 2) // (Deposits - Withdrawals)
+  systemDiscrepancy  Decimal  @db.Decimal(20, 2) // (Wallets + Chips) - Expected
+  status             String // 'MATCH' or 'DRIFT'
+  details            Json? // Optional debug info
+
+  @@index([timestamp])
+  @@index([status])
+}
+
+model Notification {
+  id        String   @id @default(uuid())
+  userId    String? // Null = Global
+  type      String // 'SYSTEM', 'TOURNAMENT', 'PERSONAL'
+  title     String
+  message   String
+  isRead    Boolean  @default(false)
+  metadata  Json?
+  createdAt DateTime @default(now())
+
+  user User? @relation(fields: [userId], references: [id])
+
+  @@index([userId])
+}
+
+model SystemStats {
+  id                 String   @id // 'global'
+  totalRakeCollected Int      @default(0)
+  updatedAt          DateTime @updatedAt
+}
+
+model GameTable {
+  id      String      @id @default(uuid())
+  name    String
+  variant GameVariant @default(TEXAS_HOLDEM)
+  status  String      @default("WAITING") // 'WAITING', 'PLAYING', 'PAUSED'
+
+  // Blinds & Stakes
+  smallBlind Decimal @default(1) @db.Decimal(20, 2)
+  bigBlind   Decimal @default(2) @db.Decimal(20, 2)
+  minBuyIn   Decimal @default(40) @db.Decimal(20, 2)
+  maxBuyIn   Decimal @default(200) @db.Decimal(20, 2)
+  ante       Decimal @default(0) @db.Decimal(20, 2)
+
+  // Pro-Tier: Rake (Yellow Cable - Financials)
+  rakePercent Decimal @default(0) @db.Decimal(5, 2) // 0-10%
+  rakeCap     Decimal @default(0) @db.Decimal(20, 2) // Max rake per pot
+
+  // Table Configuration
+  maxSeats Int @default(9)
+
+  // Omaha Variant Settings
+  holeCardsCount Int          @default(2) // 2=Texas, 4/5/6=Omaha
+  bettingLimit   BettingLimit @default(NO_LIMIT)
+
+  // Pro-Tier: Game Pace Settings
+  turnTime Int @default(30) // Seconds per action (15/30/60)
+  timeBank Int @default(60) // Reserve seconds per session
+
+  // Pro-Tier: Advanced Rules
+  isStraddleAllowed Boolean @default(false)
+  password          String? // Nullable for private games
+
+  // Metadata
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model LeaderboardStat {
+  id     String @id @default(uuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  timeframe LeaderboardTimeframe
+  gameMode  GameMode
+
+  // Aggregated Stats
+  totalWinnings Decimal @default(0) @db.Decimal(20, 2)
+  gamesPlayed   Int     @default(0)
+  gamesWon      Int     @default(0)
+  winRate       Decimal @default(0) @db.Decimal(5, 2) // Pre-computed %
+
+  // Window Boundaries (for cron idempotency)
+  periodStart DateTime
+  periodEnd   DateTime
+
+  // Metadata
+  computedAt DateTime @default(now())
+
+  // Each user gets exactly ONE row per (timeframe + gameMode) bucket
+  @@unique([userId, timeframe, gameMode])
+  @@index([timeframe, gameMode, totalWinnings(sort: Desc)]) // Powers leaderboard query
+  @@index([userId])
+}
+
+// =============================================================================
+// TOURNAMENT ECOSYSTEM (Phase 7)
+// =============================================================================
+
+model Tournament {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // ═══════════════════════════════════════════════════════════════════
+  // CONFIGURATION (Set by Admin — immutable once RUNNING)
+  // ═══════════════════════════════════════════════════════════════════
+
+  name        String
+  description String?
+  password    String? // Private tournament access
+
+  // Game Rules
+  gameType    TournamentGameType    @default(TEXAS_HOLDEM)
+  entryFormat TournamentEntryFormat @default(REGULAR)
+
+  // Financial Config
+  buyIn               Decimal  @default(0) @db.Decimal(20, 2)
+  fee                 Decimal  @default(0) @db.Decimal(20, 2)
+  guaranteedPrizePool Decimal  @default(0) @db.Decimal(20, 2)
+  bountyAmount        Decimal? @db.Decimal(20, 2) // KO/Bounty formats
+
+  // Structure
+  startingChips     Int                 @default(10000)
+  blindStructure    BlindStructureSpeed @default(REGULAR)
+  seatCap           Int? // null = unlimited
+  minPlayersToStart Int                 @default(2)
+  payoutStructure   PayoutStructure     @default(TOP_15_PERCENT)
+
+  // Schedule
+  startTime        DateTime
+  lateRegistration LateRegistrationWindow @default(SIXTY_MINUTES)
+  autoStart        Boolean                @default(true)
+
+  // Rebuy & Add-on Config
+  rebuyEnabled Boolean  @default(false)
+  rebuyCost    Decimal? @db.Decimal(20, 2)
+  rebuyChips   Int?
+  addonEnabled Boolean  @default(false)
+  addonCost    Decimal? @db.Decimal(20, 2)
+  addonChips   Int?
+
+  // Re-entry Config (when entryFormat = RE_ENTRY)
+  maxReEntries  Int?
+  reEntryWindow String?
+
+  // Audit
+  createdById String
+  createdBy   User   @relation("TournamentCreator", fields: [createdById], references: [id])
+
+  // ═══════════════════════════════════════════════════════════════════
+  // STATE (Updated by Tournament Engine at runtime)
+  // ═══════════════════════════════════════════════════════════════════
+
+  status            TournamentStatus @default(ANNOUNCED)
+  currentBlindLevel Int              @default(0)
+  tablesActive      Int              @default(0)
+  totalEntries      Int              @default(0)
+  playersRemaining  Int              @default(0)
+  actualPrizePool   Decimal          @default(0) @db.Decimal(20, 2)
+  finishedAt        DateTime?
+
+  // ═══════════════════════════════════════════════════════════════════
+  // RELATIONS
+  // ═══════════════════════════════════════════════════════════════════
+
+  entries TournamentEntry[]
+
+  @@index([status])
+  @@index([startTime])
+  @@index([createdById])
+}
+
+model TournamentEntry {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now())
+
+  // Links
+  tournamentId String
+  tournament   Tournament @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+  userId       String
+  user         User       @relation("TournamentEntries", fields: [userId], references: [id])
+
+  // Entry State
+  isActive      Boolean @default(true)
+  rebuysUsed    Int     @default(0)
+  addonsUsed    Int     @default(0)
+  reEntriesUsed Int     @default(0)
+
+  // Result (populated when player finishes)
+  finishPosition Int?
+  prizeWon       Decimal?  @db.Decimal(20, 2)
+  eliminatedAt   DateTime?
+
+  @@unique([tournamentId, userId])
+  @@index([tournamentId])
+  @@index([userId])
+  @@index([tournamentId, finishPosition])
+}

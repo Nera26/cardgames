@@ -1,0 +1,150 @@
+
+
+services:
+  # 1. THE VAULT (Postgres Database)
+  # Stores: User accounts, Transaction history, Game results
+  postgres:
+    image: postgres:15-alpine
+    container_name: poker_db
+    ports:
+      - "5432:5432"
+    environment:
+      - POSTGRES_USER=admin
+      - POSTGRES_PASSWORD=poker_password
+      - POSTGRES_DB=poker_hub
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - poker_net
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U admin -d poker_hub"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # 2. THE ENGINE (Redis)
+  # Stores: Live Game State, WebSocket rooms, User Sessions
+  redis:
+    image: redis:alpine
+    container_name: poker_redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - poker_net
+    # "Top Tier" Config: Append-only file (AOF) so you don't lose game state on restart
+    command: redis-server --appendonly yes 
+
+  # 3. THE X-RAY (Adminer - Database GUI)
+  # Access at: http://localhost:8080
+  adminer:
+    image: adminer
+    container_name: poker_db_gui
+    ports:
+      - "8080:8080"
+    environment:
+      - ADMINER_DEFAULT_SERVER=postgres
+    depends_on:
+      - postgres
+    networks:
+      - poker_net
+
+  # 4. THE SPEEDOMETER (Redis Commander - Redis GUI)
+  # Access at: http://localhost:8081
+  # Critical for debugging "Why is the game state stuck?"
+  redis-commander:
+    image: rediscommander/redis-commander:latest
+    container_name: poker_redis_gui
+    ports:
+      - "8081:8081"
+    environment:
+      - REDIS_HOSTS=local:redis:6379
+    depends_on:
+      - redis
+    networks:
+      - poker_net
+
+# Persist data so it doesn't vanish when you turn off the computer
+
+  # 5. THE BRAIN (NestJS Backend)
+  api:
+    container_name: cardgames-api
+    build:
+      context: .
+      dockerfile: ./apps/api/Dockerfile
+    
+    # CRITICAL: Run from monorepo root so NestJS finds dist/apps/api/main
+    working_dir: /usr/src/app
+    
+    # 1. THE COMMAND (Must be 'dev' mode)
+    # Ensure this runs the command that watches for changes
+    command: npm run start:dev
+
+    # 2. THE NOTIFIER (Fix for Windows/Docker Lag)
+    # Docker on Windows sometimes misses file changes. This forces it to check every split second.
+    environment:
+      - DATABASE_URL=postgresql://admin:poker_password@postgres:5432/poker_hub?schema=public
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - CHOKIDAR_USEPOLLING=true
+      - CHOKIDAR_INTERVAL=1000
+      - WATCHPACK_POLLING=true
+
+    # 3. THE MIRROR (Volumes)
+    # This maps your Windows folder directly into the Linux container.
+    # If you change a file in Windows, it instantly exists in Linux.
+    volumes:
+      # 1. Mount the API code
+      - ./apps/api:/usr/src/app/apps/api
+      
+      # 2. MOUNT THE SHARED LIBRARY (Crucial Fix)
+      - ./libs:/usr/src/app/libs
+      
+      # 3. MOUNT THE ROOT CONFIGS (So it knows what @poker/shared is)
+      - ./tsconfig.json:/usr/src/app/tsconfig.json
+      - ./package.json:/usr/src/app/package.json
+      - ./nest-cli.json:/usr/src/app/nest-cli.json
+      - ./tsconfig.base.json:/usr/src/app/tsconfig.base.json
+      
+      # 4. Ignore node_modules (let the container manage its own deps)
+      - /usr/src/app/apps/api/node_modules
+
+    ports:
+      - "3001:3000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - poker_net
+
+  # 6. THE FACE (Next.js Frontend)
+  web:
+    container_name: cardgames-web
+    build:
+      context: .
+      dockerfile: ./apps/web/Dockerfile
+    command: npm run dev
+    
+    # Same "Vibe Fix" for Frontend
+    environment:
+      # Client-side requests go to localhost:3001 (User's browser -> Host API)
+      - NEXT_PUBLIC_API_URL=http://localhost:3001
+      - CHOKIDAR_USEPOLLING=true
+      - WATCHPACK_POLLING=true
+    volumes:
+      - ./apps/web:/usr/src/app/apps/web
+      - ./libs:/usr/src/app/libs
+      - /usr/src/app/apps/web/node_modules
+    ports:
+      - "3000:3000"
+    networks:
+      - poker_net
+
+volumes:
+  postgres_data:
+  redis_data:
+
+networks:
+  poker_net:
+    driver: bridge

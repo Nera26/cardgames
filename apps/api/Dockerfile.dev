@@ -1,0 +1,35 @@
+FROM node:20-alpine
+
+RUN apk add --no-cache openssl
+
+WORKDIR /usr/src/app
+
+# Copy root manifest
+COPY package*.json ./
+
+# Copy workspace manifests
+COPY libs/shared/package.json ./libs/shared/
+COPY apps/api/package.json ./apps/api/
+COPY apps/web/package.json ./apps/web/
+
+# Configure NPM to retry on network failure and increase timeouts
+RUN npm config set fetch-retries 5 \
+    && npm config set fetch-retry-mintimeout 20000 \
+    && npm config set fetch-retry-maxtimeout 120000 \
+    && npm install --no-audit
+
+# Copy source code
+COPY . .
+
+# Generate Prisma Client
+WORKDIR /usr/src/app
+RUN npx prisma generate --schema=./libs/shared/prisma/schema.prisma
+
+# Reset to monorepo root
+WORKDIR /usr/src/app
+
+# Expose API port
+EXPOSE 3000
+
+# Dev mode: Uses watch mode, volumes will mount local code
+CMD ["npm", "run", "start:dev"]

@@ -1,0 +1,82 @@
+# ============================================================
+#  PRODUCTION Dockerfile for API (Multi-stage build)
+# ============================================================
+# Stage 1: Builder - Install deps and build
+# Stage 2: Runner - Minimal production image
+# ============================================================
+
+# ----------------------
+# STAGE 1: Builder
+# ----------------------
+FROM node:20-alpine AS builder
+
+# Install OpenSSL for Prisma
+RUN apk add --no-cache openssl openssl-dev
+
+WORKDIR /usr/src/app
+
+# Copy root manifest
+COPY package*.json ./
+
+# Copy workspace manifests
+COPY libs/shared/package.json ./libs/shared/
+COPY apps/api/package.json ./apps/api/
+COPY apps/web/package.json ./apps/web/
+
+# Install ALL dependencies (need devDeps for building)
+RUN npm install
+
+# Copy source code
+COPY . .
+
+# Generate Prisma Client
+WORKDIR /usr/src/app
+RUN ./node_modules/.bin/prisma generate --schema=./libs/shared/prisma/schema.prisma
+
+# Build the NestJS application with webpack config
+WORKDIR /usr/src/app
+RUN npx nest build api --webpack --webpackPath apps/api/webpack.config.js
+
+# ----------------------
+# STAGE 2: Runner
+# ----------------------
+FROM node:20-alpine AS runner
+
+# Install OpenSSL for Prisma runtime
+RUN apk add --no-cache openssl
+
+WORKDIR /usr/src/app
+
+# Copy root manifest
+COPY package*.json ./
+
+# Copy workspace manifests
+COPY libs/shared/package.json ./libs/shared/
+COPY apps/api/package.json ./apps/api/
+COPY apps/web/package.json ./apps/web/
+
+# Install only production dependencies
+RUN npm install --omit=dev
+
+# Copy built application from builder
+COPY --from=builder /usr/src/app/dist ./dist
+
+# Copy shared library source (needed for runtime if not fully bundled)
+COPY --from=builder /usr/src/app/libs/shared ./libs/shared
+
+# Copy Prisma client
+COPY --from=builder /usr/src/app/node_modules/.prisma ./node_modules/.prisma
+COPY --from=builder /usr/src/app/node_modules/@prisma/client ./node_modules/@prisma/client
+COPY --from=builder /usr/src/app/libs/shared/prisma ./libs/shared/prisma
+
+# Copy Lua scripts (loaded at runtime, not bundled by webpack)
+COPY --from=builder /usr/src/app/apps/api/src/game/lua ./dist/apps/api/lua
+
+# Expose API port
+EXPOSE 3000
+
+# Production mode
+ENV NODE_ENV=production
+
+# Start the production server
+CMD ["node", "dist/apps/api/main.js"]

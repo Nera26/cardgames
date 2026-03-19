@@ -1,0 +1,3 @@
+-- AlterTable
+ALTER TABLE "GameTable" ADD COLUMN     "rakeCap" DECIMAL(20,2) NOT NULL DEFAULT 3,
+ADD COLUMN     "rakePercent" DECIMAL(5,2) NOT NULL DEFAULT 5;

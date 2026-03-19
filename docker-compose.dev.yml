@@ -1,0 +1,163 @@
+# ============================================================
+#  DEVELOPMENT Docker Compose
+#  Usage: docker-compose -f docker-compose.dev.yml up
+# ============================================================
+# Features:
+#   - Volume mounts for instant hot reload
+#   - File watching enabled
+#   - Development tools (Adminer, Redis Commander)
+#   - Dev mode commands
+# ============================================================
+
+services:
+  # ----------------------
+  # DATABASE
+  # ----------------------
+  postgres:
+    image: postgres:15-alpine
+    container_name: poker_db
+    ports:
+      - "5432:5432"
+    environment:
+      - POSTGRES_USER=admin
+      - POSTGRES_PASSWORD=poker_password
+      - POSTGRES_DB=poker_hub
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - poker_net
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U admin -d poker_hub"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # ----------------------
+  # REDIS (Session/Cache)
+  # ----------------------
+  redis:
+    image: redis:alpine
+    container_name: poker_redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - poker_net
+    command: redis-server --appendonly yes
+
+  # ----------------------
+  # DATABASE GUI (Dev Only)
+  # ----------------------
+  adminer:
+    image: adminer
+    container_name: poker_db_gui
+    ports:
+      - "8082:8080"
+    environment:
+      - ADMINER_DEFAULT_SERVER=postgres
+    depends_on:
+      - postgres
+    networks:
+      - poker_net
+
+  # ----------------------
+  # REDIS GUI (Dev Only)
+  # ----------------------
+  redis-commander:
+    image: rediscommander/redis-commander:latest
+    container_name: poker_redis_gui
+    ports:
+      - "8081:8081"
+    environment:
+      - REDIS_HOSTS=local:redis:6379
+    depends_on:
+      - redis
+    networks:
+      - poker_net
+
+  # ----------------------
+  # API (NestJS Backend)
+  # ----------------------
+  api:
+    container_name: cardgames-api
+    build:
+      context: .
+      dockerfile: ./apps/api/Dockerfile.dev
+    working_dir: /usr/src/app
+    command: npm run start:dev
+    environment:
+      - NODE_ENV=development
+      - DATABASE_URL=postgresql://admin:poker_password@postgres:5432/poker_hub?schema=public
+      - REDIS_URL=redis://redis:6379
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      # File watching for Windows/Docker
+      - CHOKIDAR_USEPOLLING=true
+      - CHOKIDAR_INTERVAL=500
+      - WATCHPACK_POLLING=true
+    volumes:
+      # Mount source code for hot reload
+      - ./apps/api:/usr/src/app/apps/api
+      - ./libs:/usr/src/app/libs
+      # Mount root configs
+      - ./tsconfig.json:/usr/src/app/tsconfig.json
+      - ./package.json:/usr/src/app/package.json
+      - ./nest-cli.json:/usr/src/app/nest-cli.json
+      - ./tsconfig.base.json:/usr/src/app/tsconfig.base.json
+      # Preserve container's node_modules
+      - api_node_modules:/usr/src/app/node_modules
+      - api_app_node_modules:/usr/src/app/apps/api/node_modules
+    ports:
+      - "3001:3000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - poker_net
+
+  # ----------------------
+  # WEB (Next.js Frontend)
+  # ----------------------
+  web:
+    container_name: cardgames-web
+    build:
+      context: .
+      dockerfile: ./apps/web/Dockerfile.dev
+    working_dir: /usr/src/app/apps/web
+    command: npm run dev
+    environment:
+      - NODE_ENV=development
+      - NEXT_PUBLIC_API_URL=http://localhost:3001
+      # File watching for Windows/Docker
+      - CHOKIDAR_USEPOLLING=true
+      - WATCHPACK_POLLING=true
+    volumes:
+      # Mount source code for hot reload
+      - ./apps/web:/usr/src/app/apps/web
+      - ./libs:/usr/src/app/libs
+      # Mount root configs
+      - ./tsconfig.json:/usr/src/app/tsconfig.json
+      - ./package.json:/usr/src/app/package.json
+      # Preserve container's node_modules
+      - web_node_modules:/usr/src/app/node_modules
+      - web_app_node_modules:/usr/src/app/apps/web/node_modules
+      # Preserve Next.js cache
+      - web_next_cache:/usr/src/app/apps/web/.next
+    ports:
+      - "3000:3000"
+    networks:
+      - poker_net
+
+volumes:
+  postgres_data:
+  redis_data:
+  api_node_modules:
+  api_app_node_modules:
+  web_node_modules:
+  web_app_node_modules:
+  web_next_cache:
+
+networks:
+  poker_net:
+    driver: bridge
