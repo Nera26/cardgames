@@ -1,0 +1,61 @@
+# ============================================================
+#  PRODUCTION Dockerfile for Web (Multi-stage build)
+# ============================================================
+# Stage 1: Builder - Install deps and build Next.js
+# Stage 2: Runner - Minimal production image with standalone
+# ============================================================
+
+# ----------------------
+# STAGE 1: Builder
+# ----------------------
+FROM node:20-alpine AS builder
+
+WORKDIR /usr/src/app
+
+# Copy root manifest
+COPY package*.json ./
+
+# Copy workspace manifests
+COPY libs/shared/package.json ./libs/shared/
+COPY apps/api/package.json ./apps/api/
+COPY apps/web/package.json ./apps/web/
+
+# Install ALL dependencies
+RUN npm install
+
+# Copy source code
+COPY . .
+
+# Build the Next.js application
+WORKDIR /usr/src/app/apps/web
+ENV NEXT_TELEMETRY_DISABLED=1
+RUN npm run build
+
+# ----------------------
+# STAGE 2: Runner
+# ----------------------
+FROM node:20-alpine AS runner
+
+WORKDIR /usr/src/app
+
+# Create non-root user for security
+RUN addgroup --system --gid 1001 nodejs
+RUN adduser --system --uid 1001 nextjs
+
+# Copy the standalone build
+COPY --from=builder /usr/src/app/apps/web/.next/standalone ./
+COPY --from=builder /usr/src/app/apps/web/.next/static ./apps/web/.next/static
+COPY --from=builder /usr/src/app/apps/web/public ./apps/web/public
+
+# Set correct permissions
+RUN chown -R nextjs:nodejs /usr/src/app
+
+USER nextjs
+
+EXPOSE 3000
+
+ENV NODE_ENV=production
+ENV PORT=3000
+
+# Start the standalone server
+CMD ["node", "apps/web/server.js"]

@@ -1,0 +1,423 @@
+@import "tailwindcss";
+
+@theme {
+    /* Midnight Gold Palette (New) */
+    --color-background: #0B0E14;
+    /* Deepest Navy/Black */
+    --color-surface: #151A23;
+    /* Lighter Navy */
+    --color-surface-hover: #1E2532;
+    /* Hover state */
+
+    --color-gold-400: #FFE135;
+    /* Brighter Yellow/Gold */
+    --color-gold-500: #FFD700;
+    /* Pure Gold (More Yellow) */
+    --color-gold-600: #D4AF37;
+    /* Metallic Gold (Darker) */
+
+    --color-border: rgba(255, 255, 255, 0.08);
+    --color-success: #10B981;
+
+    --image-gold-gradient: linear-gradient(135deg, #D4AF37 0%, #B5952F 100%);
+    --image-glass-gradient: linear-gradient(180deg, rgba(21, 26, 35, 0.7) 0%, rgba(21, 26, 35, 1) 100%);
+
+    /* Mapping Legacy Variables to New Theme (Instant Upgrade) */
+    --color-primary-bg: var(--color-background);
+    --color-card-bg: var(--color-surface);
+    --color-hover-bg: var(--color-surface-hover);
+    --color-text-primary: #F3F4F6;
+    --color-text-secondary: #9CA3AF;
+
+    --color-accent-yellow: var(--color-gold-500);
+    --color-accent-green: var(--color-success);
+    --color-accent-blue: #5a9bcf;
+    --color-danger-red: #ef4444;
+    /* More vibrant red */
+    --color-border-dark: var(--color-border);
+
+    /* Table-specific colors */
+    --color-table-felt: #3d6b56;
+    --color-table-border: #5c4033;
+
+    /* Border Radius */
+    --radius-xl: 12px;
+    --radius-2xl: 16px;
+
+    /* Spacing */
+    --spacing-20px: 20px;
+    --spacing-24px: 24px;
+    --spacing-32px: 32px;
+
+    /* Fonts */
+    --font-sans: Inter, sans-serif;
+}
+
+/* Custom Gradients */
+.bg-gold-gradient {
+    background-image: linear-gradient(135deg, #FFD700 0%, #D4AF37 100%);
+}
+
+.bg-glass-gradient {
+    background-image: linear-gradient(180deg, rgba(21, 26, 35, 0.7) 0%, rgba(21, 26, 35, 1) 100%);
+}
+
+body {
+    background-color: var(--color-background);
+    background-image: radial-gradient(circle at 50% 0%, #1e293b 0%, #0B0E14 60%);
+    color: var(--color-text-primary);
+    min-height: 100vh;
+}
+
+/* ===================================
+   LIVING GAME ANIMATIONS
+   =================================== */
+
+/* Subtle pulse glow for active elements */
+@keyframes pulse-glow {
+
+    0%,
+    100% {
+        box-shadow: 0 0 20px rgba(255, 215, 0, 0.4),
+            0 0 40px rgba(255, 215, 0, 0.2);
+    }
+
+    50% {
+        box-shadow: 0 0 30px rgba(255, 215, 0, 0.6),
+            0 0 60px rgba(255, 215, 0, 0.3);
+    }
+}
+
+/* Very subtle pulse for backgrounds */
+@keyframes pulse-subtle {
+
+    0%,
+    100% {
+        opacity: 1;
+    }
+
+    50% {
+        opacity: 0.85;
+    }
+}
+
+/* Breathing animation for avatars */
+@keyframes breathe {
+
+    0%,
+    100% {
+        transform: scale(1);
+    }
+
+    50% {
+        transform: scale(1.03);
+    }
+}
+
+/* Bounce subtle for timer warning */
+@keyframes bounce-subtle {
+
+    0%,
+    100% {
+        transform: translateY(0) translateX(-50%);
+    }
+
+    50% {
+        transform: translateY(-3px) translateX(-50%);
+    }
+}
+
+/* Card shimmer effect */
+@keyframes shimmer {
+    0% {
+        background-position: -200% 0;
+    }
+
+    100% {
+        background-position: 200% 0;
+    }
+}
+
+@keyframes shimmer-slide {
+    0% {
+        transform: translateX(-100%) skewX(-12deg);
+    }
+
+    100% {
+        transform: translateX(200%) skewX(-12deg);
+    }
+}
+
+/* Card deal animation */
+@keyframes card-deal {
+    0% {
+        opacity: 0;
+        transform: translateY(-30px) scale(0.8) rotateY(90deg);
+    }
+
+    60% {
+        opacity: 1;
+        transform: translateY(5px) scale(1.05) rotateY(0deg);
+    }
+
+    100% {
+        transform: translateY(0) scale(1) rotateY(0deg);
+    }
+}
+
+/* Chip stack animation */
+@keyframes chip-stack {
+    0% {
+        opacity: 0;
+        transform: translateY(-10px) scale(0.8);
+    }
+
+    100% {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+    }
+}
+
+/* Pot increase animation */
+@keyframes pot-increase {
+    0% {
+        transform: scale(1);
+    }
+
+    30% {
+        transform: scale(1.1);
+    }
+
+    60% {
+        transform: scale(0.95);
+    }
+
+    100% {
+        transform: scale(1);
+    }
+}
+
+/* Number pop for pot value */
+@keyframes number-pop {
+    0% {
+        transform: scale(1);
+    }
+
+    50% {
+        transform: scale(1.15);
+    }
+
+    100% {
+        transform: scale(1);
+    }
+}
+
+/* Chip appear animation */
+@keyframes chip-appear {
+    0% {
+        opacity: 0;
+        transform: translateX(-50%) translateY(10px) scale(0.5);
+    }
+
+    100% {
+        opacity: 1;
+        transform: translateX(-50%) translateY(0) scale(1);
+    }
+}
+
+/* Slide up for controls */
+@keyframes slide-up {
+    0% {
+        opacity: 0;
+        transform: translateY(20px);
+    }
+
+    100% {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* Fade in */
+@keyframes fade-in {
+    0% {
+        opacity: 0;
+    }
+
+    100% {
+        opacity: 1;
+    }
+}
+
+/* Action button animations */
+@keyframes action-fold {
+    0% {
+        transform: scale(1);
+    }
+
+    50% {
+        transform: scale(0.9) rotate(-5deg);
+    }
+
+    100% {
+        transform: scale(1) rotate(0deg);
+    }
+}
+
+@keyframes action-call {
+    0% {
+        transform: scale(1);
+    }
+
+    50% {
+        transform: scale(1.05);
+    }
+
+    100% {
+        transform: scale(1);
+    }
+}
+
+@keyframes action-raise {
+    0% {
+        transform: scale(1);
+    }
+
+    30% {
+        transform: scale(1.1);
+    }
+
+    100% {
+        transform: scale(1);
+    }
+}
+
+/* Apply animation classes */
+.animate-pulse-glow {
+    animation: pulse-glow 2s ease-in-out infinite;
+}
+
+.animate-pulse-subtle {
+    animation: pulse-subtle 3s ease-in-out infinite;
+}
+
+.animate-breathe {
+    animation: breathe 3s ease-in-out infinite;
+}
+
+.animate-bounce-subtle {
+    animation: bounce-subtle 0.5s ease-in-out infinite;
+}
+
+.animate-shimmer {
+    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.1), transparent);
+    background-size: 200% 100%;
+    animation: shimmer 3s linear infinite;
+}
+
+.animate-shimmer-slide {
+    animation: shimmer-slide 3s ease-in-out infinite;
+}
+
+.animate-card-deal {
+    animation: card-deal 0.5s ease-out forwards;
+}
+
+.animate-pot-increase {
+    animation: pot-increase 0.4s ease-out;
+}
+
+.animate-number-pop {
+    animation: number-pop 0.3s ease-out;
+}
+
+.animate-chip-appear {
+    animation: chip-appear 0.3s ease-out forwards;
+}
+
+.animate-chip-stack {
+    animation: chip-stack 0.4s ease-out forwards;
+}
+
+.animate-slide-up {
+    animation: slide-up 0.3s ease-out;
+}
+
+.animate-fade-in {
+    animation: fade-in 0.2s ease-out;
+}
+
+.animate-action-fold {
+    animation: action-fold 0.3s ease-out;
+}
+
+.animate-action-call {
+    animation: action-call 0.2s ease-out;
+}
+
+.animate-action-raise {
+    animation: action-raise 0.3s ease-out;
+}
+
+/* ===================================
+   UTILITY COMPONENTS
+   =================================== */
+
+@layer components {
+
+    /* Tooltip Container */
+    .tooltip {
+        @apply relative cursor-pointer;
+    }
+
+    /* The hidden text */
+    .tooltip-text {
+        @apply invisible opacity-0 absolute bottom-[125%] left-1/2 -translate-x-1/2 bg-[#1a1a1f] text-white text-xs px-2 py-1 rounded transition-opacity duration-200 whitespace-nowrap z-50 shadow-lg border border-[#2e2e32];
+    }
+
+    /* Show on hover */
+    .tooltip:hover .tooltip-text {
+        @apply visible opacity-100;
+    }
+
+    /* Custom scrollbar */
+    .custom-scrollbar::-webkit-scrollbar {
+        width: 6px;
+    }
+
+    .custom-scrollbar::-webkit-scrollbar-track {
+        background: transparent;
+    }
+
+    .custom-scrollbar::-webkit-scrollbar-thumb {
+        background: rgba(255, 255, 255, 0.1);
+        border-radius: 3px;
+    }
+
+    .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+        background: rgba(255, 255, 255, 0.2);
+    }
+}
+
+/* ===================================
+   GAME-SPECIFIC STYLES
+   =================================== */
+
+/* Full-screen game container - clean dark gunmetal */
+.game-container {
+    min-height: 100vh;
+    min-height: 100dvh;
+    background: radial-gradient(ellipse at center, #22262b 0%, #1a1d21 100%);
+    color: #f0f0f0;
+}
+
+/* Radial gradient utility */
+.bg-gradient-radial {
+    background: radial-gradient(var(--tw-gradient-stops));
+}
+
+@media (max-width: 768px) {
+    body {
+        padding-bottom: 100px;
+    }
+}

@@ -1,0 +1,29 @@
+FROM node:20-alpine
+
+WORKDIR /usr/src/app
+
+# Copy root manifest
+COPY package*.json ./
+
+# Copy workspace manifests
+COPY libs/shared/package.json ./libs/shared/
+COPY apps/api/package.json ./apps/api/
+COPY apps/web/package.json ./apps/web/
+
+# Configure NPM to retry on network failure and increase timeouts
+RUN npm config set fetch-retries 5 \
+    && npm config set fetch-retry-mintimeout 20000 \
+    && npm config set fetch-retry-maxtimeout 120000 \
+    && npm install --no-audit
+
+# Copy source code
+COPY . .
+
+# Set working directory to web app
+WORKDIR /usr/src/app/apps/web
+
+# Expose Web port
+EXPOSE 3000
+
+# Dev mode: Uses Next.js dev server, volumes will mount local code
+CMD ["npm", "run", "dev"]
