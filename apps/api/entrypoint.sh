@@ -27,7 +27,15 @@ echo "🔧 Generating Prisma Client..."
 npx prisma generate --schema="$SCHEMA_PATH"
 
 echo "════════════════════════════════════════════"
-echo "✅ Blue Cable online. Database schema synced."
+echo "✅ Blue Cable — Database schema synced."
+echo ""
+
+# Step 3: Seed system accounts (Superadmin + House Treasury)
+echo "🛡️  Seeding system accounts..."
+node ./libs/shared/prisma/seed-superadmin.js
+
+echo ""
+echo "✅ Blue Cable online. System ready."
 echo ""
 
 # Hand off to the original CMD (npm run start:dev, node dist/main, etc.)
