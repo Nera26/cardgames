@@ -67,16 +67,25 @@ COPY --from=builder /usr/src/app/libs/shared ./libs/shared
 # Copy Prisma client
 COPY --from=builder /usr/src/app/node_modules/.prisma ./node_modules/.prisma
 COPY --from=builder /usr/src/app/node_modules/@prisma/client ./node_modules/@prisma/client
+COPY --from=builder /usr/src/app/node_modules/prisma ./node_modules/prisma
+COPY --from=builder /usr/src/app/node_modules/@prisma/engines ./node_modules/@prisma/engines
 COPY --from=builder /usr/src/app/libs/shared/prisma ./libs/shared/prisma
 
 # Copy Lua scripts (loaded at runtime, not bundled by webpack)
 COPY --from=builder /usr/src/app/apps/api/src/game/lua ./dist/apps/api/lua
+
+# 🔵 Blue Cable: Copy entrypoint script (auto-syncs DB schema on startup)
+COPY apps/api/entrypoint.sh /usr/local/bin/entrypoint.sh
+RUN chmod +x /usr/local/bin/entrypoint.sh
 
 # Expose API port
 EXPOSE 3000
 
 # Production mode
 ENV NODE_ENV=production
+
+# Entrypoint runs prisma migrate deploy before handing off to CMD
+ENTRYPOINT ["entrypoint.sh"]
 
 # Start the production server
 CMD ["node", "dist/apps/api/main.js"]

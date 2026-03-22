@@ -104,6 +104,28 @@ docker exec -it cardgames-api npx prisma studio
 docker exec cardgames-api npx prisma migrate reset
 ```
 
+### Automated Workflows (🔵 Blue Cable)
+
+The API container **automatically syncs the database schema** on every startup via `entrypoint.sh`:
+
+- **Development**: Runs `prisma db push` (fast, schema-only sync)
+- **Production**: Runs `prisma migrate deploy` (applies tracked migrations)
+
+This means you **never need to manually run `prisma db push`** after a fresh deploy or volume wipe.
+
+**Check migration logs:**
+```bash
+# See the Blue Cable sync output
+docker-compose -f docker-compose.dev.yml logs api | grep "Blue Cable"
+```
+
+**Manual recovery (if needed):**
+```bash
+# Run the deploy-fix script
+./scripts/deploy-fix.sh dev    # For development
+./scripts/deploy-fix.sh prod   # For production
+```
+
 ---
 
 ## Troubleshooting
@@ -160,12 +182,17 @@ cardgames/
 ├── apps/
 │   ├── api/
 │   │   ├── Dockerfile.dev      # API development image
-│   │   └── Dockerfile.prod     # API production image
+│   │   ├── Dockerfile.prod     # API production image
+│   │   └── entrypoint.sh       # 🔵 Blue Cable auto-sync script
 │   └── web/
 │       ├── Dockerfile.dev      # Web development image
 │       └── Dockerfile.prod     # Web production image
-└── libs/
-    └── shared/                 # Shared code (mounted in dev)
+├── libs/
+│   └── shared/                 # Shared code (mounted in dev)
+│       └── prisma/
+│           └── schema.prisma   # Database schema (source of truth)
+└── scripts/
+    └── deploy-fix.sh           # 🔵 Manual recovery script
 ```
 
 ---
