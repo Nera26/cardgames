@@ -76,7 +76,7 @@ COPY --from=builder /usr/src/app/apps/api/src/game/lua ./dist/apps/api/lua
 
 # 🔵 Blue Cable: Copy entrypoint script (auto-syncs DB schema on startup)
 COPY apps/api/entrypoint.sh /usr/local/bin/entrypoint.sh
-RUN chmod +x /usr/local/bin/entrypoint.sh
+RUN sed -i 's/\r$//' /usr/local/bin/entrypoint.sh && chmod +x /usr/local/bin/entrypoint.sh
 
 # Expose API port
 EXPOSE 3000
