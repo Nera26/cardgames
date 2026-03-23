@@ -26,12 +26,28 @@ docker-compose -f docker-compose.dev.yml up --build
 ### Production Mode (For deployment/testing)
 
 ```bash
-# Build and start optimized containers
+# Build and start optimized containers (localhost)
 docker-compose -f docker-compose.prod.yml up --build
 
 # Run in background
 docker-compose -f docker-compose.prod.yml up -d --build
 ```
+
+### Server Deployment (Remote access)
+
+> ⚠️ **Important:** `NEXT_PUBLIC_API_URL` is baked into the frontend at **build time**.
+> You must set `API_URL` before building so remote browsers can reach the API.
+
+```bash
+# Option 1: Inline
+API_URL=http://YOUR_SERVER_IP:3001 docker-compose -f docker-compose.prod.yml up --build -d
+
+# Option 2: .env file in project root
+echo "API_URL=http://YOUR_SERVER_IP:3001" > .env
+docker-compose -f docker-compose.prod.yml up --build -d
+```
+
+Replace `YOUR_SERVER_IP` with your server's public IP or domain name.
 
 **Features:**
 - ✅ Optimized multi-stage builds
@@ -210,7 +226,7 @@ cardgames/
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `POSTGRES_PASSWORD` | poker_password | Database password |
-| `API_URL` | http://localhost:3001 | API URL for frontend |
+| `API_URL` | http://localhost:3001 | **Build-time.** Public URL of the API for remote browsers |
 
 ---
 
