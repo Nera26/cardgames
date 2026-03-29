@@ -97,7 +97,7 @@ const CELEBRATION_DELAY_MS = 15000;
 
 @WebSocketGateway({
     cors: {
-        origin: process.env.FRONTEND_URL || 'http://localhost:3000',
+        origin: '*',
         credentials: true,
     },
     namespace: '/game',
